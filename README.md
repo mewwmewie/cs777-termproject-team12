@@ -20,10 +20,10 @@ This project implements three machine learning models to predict Dota 2 professi
 3. Can we build an effective hero recommendation system based on synergy and counter-pick analysis?
 
 ### Key Results:
-- **Draft-Only Prediction:** 67.4% accuracy, 0.74 AUC (exceeds 65% target)
-- **Early Game Prediction:** 71.6% accuracy, 0.72 AUC (+14.2% improvement over draft-only)
-- **Hero Recommendation:** Successfully generates top-3 hero suggestions with 64% validation rate
-- **Best Model:** Random Forest for draft prediction, Logistic Regression for early game prediction
+- **Draft-Only Prediction:** 60.4% accuracy, 0.643 AUC (Sample 1)
+- **Early Game Prediction:** 65.1% accuracy, 0.716 AUC (+14.24% improvement over draft-only baseline)
+- **Hero Recommendation:** Successfully generates top-3 hero suggestions based on 125 heroes and 7,635 synergy pairs
+- **Best Model:** Logistic Regression for both draft and early game prediction
 
 ---
 
@@ -32,20 +32,20 @@ This project implements three machine learning models to predict Dota 2 professi
 ```
 cs777-termproject-team12/
 ├── code/
-│   ├── METCS777-term-project-code-sample-1-Team12.py    # Code Sample 1: Draft-based prediction
-│   ├── METCS777-term-project-code-sample-2-Team12.py    # Code Sample 2: Early game enhanced prediction
-│   └── METCS777-term-project-code-sample-3-Team12.py    # Code Sample 3: Hero recommendation system
+│   ├── METCS777-term-project-code-sample-1-Team12.py    # Draft-based prediction
+│   ├── METCS777-term-project-code-sample-2-Team12.py    # Early game enhanced prediction
+│   └── METCS777-term-project-code-sample-3-Team12.py    # Hero recommendation system
 └── data/sampled/
     ├── all_word_counts.csv                              # Word count analysis
     ├── chat.csv                                         # In-game chat data
     ├── cosmetics.csv                                    # Cosmetic items data
     ├── draft_timings.csv                                # Draft timing information
     ├── main_metadata.csv                                # Match outcomes and metadata
-    ├── objectives.csv                                   # Game objectives (towers, roshans, etc.)
+    ├── objectives.csv                                   # Game objectives
     ├── picks_bans.csv                                   # Hero draft selections
     ├── players.csv                                      # Player performance stats
-    ├── radiant_exp_adv.csv                              # Experience advantages over time
-    ├── radiant_gold_adv.csv                             # Gold advantages over time
+    ├── radiant_exp_adv.csv                              # Experience advantages
+    ├── radiant_gold_adv.csv                             # Gold advantages
     ├── teamfights.csv                                   # Teamfight statistics
     └── teams.csv                                        # Team information
 ```
@@ -64,17 +64,12 @@ cs777-termproject-team12/
 | File | Description | Key Columns |
 |------|-------------|-------------|
 | main_metadata.csv | Match outcomes and metadata | match_id, radiant_win, duration, patch |
-| picks_bans.csv | Hero draft selections | match_id, hero_id, team, is_pick |
-| players.csv | Player performance stats | match_id, kills, deaths, gold_per_min |
+| picks_bans.csv | Hero draft selections | match_id, hero_id, team, is_pick, order |
 | radiant_gold_adv.csv | Gold advantages over time | match_id, minute, gold |
 | radiant_exp_adv.csv | Experience advantages | match_id, minute, exp |
 | objectives.csv | Game objectives | match_id, type, time, team |
-| teamfights.csv | Teamfight statistics | match_id, start, deaths |
-| draft_timings.csv | Pick/ban timing data | match_id, pick, total_time_taken |
-| teams.csv | Team information | team_id, name, tag |
-| chat.csv | In-game chat logs | match_id, time, player_slot, key |
-| cosmetics.csv | Cosmetic items | match_id, item_id, hero_id |
-| all_word_counts.csv | Chat word frequency | word, count |
+| teamfights.csv | Teamfight statistics | match_id, start, deaths, gold_delta |
+| draft_timings.csv | Pick/ban timing data | match_id, pick, total_time_taken, extra_time |
 
 **Full Dataset:** [Kaggle - Dota 2 Matches Dataset](https://www.kaggle.com/datasets/devinanzelmo/dota-2-matches)
 
@@ -86,7 +81,7 @@ cs777-termproject-team12/
 - Apache Spark 3.x with PySpark
 - Python 3.7+
 - Google Cloud Platform account
-- Libraries: numpy, json
+- Libraries: pyspark, json
 
 ### Setup
 
@@ -100,14 +95,15 @@ cd cs777-termproject-team12
 
 ```bash
 # Create Cloud Storage buckets
-gsutil mb gs://dota2-project-input
-gsutil mb gs://dota2-project-output
+gsutil mb gs://bucket0820/
+gsutil mb gs://cs777-termpaper/
+gsutil mb gs://dota2-dataproc-bucket-utkarsh/
 
 # Upload data to Cloud Storage
-gsutil cp -r data/sampled/* gs://dota2-project-input/
+gsutil cp -r data/sampled/* gs://bucket0820/dota_data/
 
 # Upload code files
-gsutil cp code/* gs://dota2-project-code/
+gsutil cp code/* gs://bucket0820/scripts/
 
 # Create Dataproc cluster
 gcloud dataproc clusters create dota2-prediction-cluster \
@@ -117,7 +113,7 @@ gcloud dataproc clusters create dota2-prediction-cluster \
   --num-workers 2 \
   --worker-machine-type n1-standard-4 \
   --worker-boot-disk-size 50 \
-  --image-version 2.1-debian11
+  --image-version 2.0-debian10
 ```
 
 ---
@@ -126,28 +122,45 @@ gcloud dataproc clusters create dota2-prediction-cluster \
 
 ### Code Sample 1: Draft-Based Prediction
 
-Predicts match outcomes using only hero picks and bans before the game starts.
+Predicts match outcomes using hero picks/bans, synergy, pick order, and timing.
+
+**Configuration:**
+- Year Range: 2016-2024
+- Features: Hero picks/bans (one-hot encoded), synergy matrix, pick order, draft timing, patch version
+- Models: Logistic Regression, Random Forest, Gradient Boosting
+- Target Metrics: Accuracy ≥65%, AUC-ROC ≥0.70
 
 **On GCP Dataproc:**
 ```bash
 gcloud dataproc jobs submit pyspark \
-  gs://dota2-project-code/METCS777-term-project-code-sample-1-Team12.py \
+  gs://bucket0820/scripts/METCS777-term-project-code-sample-1-Team12.py \
   --cluster=dota2-prediction-cluster \
-  --region=us-east1 \
-  -- gs://dota2-project-input/ gs://dota2-project-output/sample1/
+  --region=us-east1
 ```
 
 **Expected Outputs:**
-- Draft-only accuracy: 67.4%
-- AUC-ROC: 0.74
-- Training time: ~80 seconds
-- Files: model_comparison.csv, feature_importance_random_forest.csv, predictions.csv
+```
+Model Performance:
+- Logistic Regression: 60.4% accuracy, 0.643 AUC
+- Random Forest: 58.0% accuracy, 0.610 AUC
+- Gradient Boosting: 58.5% accuracy, 0.621 AUC
 
-**Key Features Used:**
-- Hero pick indicators (248 heroes × 2 teams = 496 features)
-- Hero synergy scores (team composition)
-- Pick order patterns
-- Pick timing statistics
+Files Generated:
+- model_comparison.csv
+- feature_importance_random_forest.csv
+- feature_importance_gradient_boosting.csv
+- logistic_regression_coefficients.csv
+- logistic_regression_intercept.csv
+- predictions.csv
+- best_model_[model_name]/
+```
+
+**Top Features (Gradient Boosting):**
+1. synergy_diff: 7.36%
+2. patch: 3.55%
+3. radiant_synergy: 2.37%
+4. dire_first_pick: 2.29%
+5. dire_synergy: 1.97%
 
 ---
 
@@ -155,32 +168,60 @@ gcloud dataproc jobs submit pyspark \
 
 Improves predictions by adding first 10 minutes of gameplay data.
 
+**Configuration:**
+- Early Game Window: 10 minutes
+- Additional Features: Gold/XP advantages, trends, volatility, objectives, teamfights
+- Train/Test Split: 80/20
+- Models: Logistic Regression, Random Forest, Gradient Boosting
+
 **On GCP Dataproc:**
 ```bash
 gcloud dataproc jobs submit pyspark \
-  gs://dota2-project-code/METCS777-term-project-code-sample-2-Team12.py \
+  gs://cs777-termpaper/scripts/METCS777-term-project-code-sample-2-Team12.py \
   --cluster=dota2-prediction-cluster \
   --region=us-east1 \
-  -- gs://dota2-project-input/ gs://dota2-project-output/sample2/
+  -- gs://cs777-termpaper/merged gs://cs777-termpaper/output/sample2
 ```
 
 **Expected Outputs:**
-- Early game accuracy: 71.6%
-- AUC-ROC: 0.72
-- Improvement over draft: +14.2%
-- Training time: ~100 seconds
-- Files: early_game_results.json, early_game_report/, predictions/
+```
+Data Loading: 72.43 seconds
+- Total rows loaded: 11,068,988
 
-**Additional Features:**
-- Gold advantage at 10 minutes (strongest predictor)
-- Experience advantage trends
-- Teamfight outcomes
-- Tower kills and objectives
-- Combined momentum indicators
+Feature Engineering: 19.43 seconds
+- Features created: 21
+- Final dataset: 123,692 matches
+- Train: 98,953 samples, Test: 24,739 samples
+
+Model Results:
+- Logistic Regression (BEST): 65.07% accuracy, 0.7155 AUC, 33.28 sec training
+- Random Forest: 64.99% accuracy, 0.7149 AUC, 79.53 sec training
+- Gradient Boosting: 64.81% accuracy, 0.7108 AUC, 306.72 sec training
+
+Draft-Only Baseline: 50.83% accuracy, 0.503 AUC
+Improvement: +14.24% accuracy gain, +0.2125 AUC gain
+
+Files Generated:
+- early_game_results.json/
+- early_game_report/
+- predictions/
+```
+
+**Top 10 Features (Random Forest):**
+1. combined_advantage: 24.05%
+2. gold_trend_10min: 15.55%
+3. gold_at_10min: 14.18%
+4. is_radiant_ahead: 10.46%
+5. exp_trend_10min: 8.38%
+6. gold_min_10min: 4.35%
+7. gold_max_10min: 3.50%
+8. exp_max_10min: 3.44%
+9. exp_at_10min: 3.20%
+10. gold_volatility_10min: 2.93%
 
 **Sample Prediction Output:**
 ```
-Example 1 (Match ID: 6789012345):
+Example 1 (Match ID: 5234567890):
   Input at 10 minutes:
     - Gold lead: Radiant +2,450
     - Experience lead: Radiant +1,850
@@ -188,7 +229,7 @@ Example 1 (Match ID: 6789012345):
     - Towers destroyed: 1
   
   Prediction:
-    - Draft-only estimate: ~52% (baseline)
+    - Draft-only estimate: ~50.8% (baseline)
     - Updated prediction: Radiant 76.2%
     - Confidence: strong
   
@@ -203,25 +244,39 @@ Example 1 (Match ID: 6789012345):
 
 Recommends optimal hero picks based on team synergy and enemy counters.
 
+**Configuration:**
+- Scoring Formula: 0.4 × Synergy + 0.4 × Counter + 0.2 × Meta
+- Minimum Games for Synergy: Statistical threshold
+- Output: Top-3 hero recommendations
+
 **On GCP Dataproc:**
 ```bash
 gcloud dataproc jobs submit pyspark \
-  gs://dota2-project-code/METCS777-term-project-code-sample-3-Team12.py \
+  gs://dota2-dataproc-bucket-utkarsh/scripts/METCS777-term-project-code-sample-3-Team12.py \
   --cluster=dota2-prediction-cluster \
-  --region=us-east1 \
-  -- gs://dota2-project-input/ gs://dota2-project-output/sample3/
+  --region=us-east1
 ```
 
 **Expected Outputs:**
-- Top 3 hero recommendations with reasoning
-- Synergy scores for 7,635 hero pairs
-- Counter-pick matrix for 15,282 combinations
-- Execution time: ~1,100 seconds
-- Validation rate: 64%
-
-**Algorithm:**
 ```
-Final Score = 0.4 × Synergy + 0.4 × Counter + 0.2 × Meta
+Data Loading: 13.537 seconds
+- Rows Loaded: 2,820,604
+
+Meta Statistics: 2.545 seconds
+- Meta Heroes: 125
+
+Synergy Matrix: 0.129 seconds
+- Synergy Pairs: 7,635
+
+Counter Matrix: 0.081 seconds
+- Counter Pairs: 15,282
+
+Recommendation: 1,084.568 seconds
+
+Total Pipeline Time: 1,124.366 seconds
+
+Files Generated:
+- Results/output_[timestamp].txt (uploaded to GCS bucket)
 ```
 
 **Sample Output:**
@@ -230,15 +285,20 @@ TOP 3 RECOMMENDATIONS
 Radiant Picks: [74, 12]
 Dire Picks: [102, 45]
 
-Hero 13 (Score: 502.49)
+Hero 13 (Score: 502.4942)
   • Synergy: 808.25
   • Counter: 447.75
   • Meta: 0.4708
 
-Hero 129 (Score: 453.79)
-  • Synergy: 727.50
+Hero 129 (Score: 453.7899)
+  • Synergy: 727.5
   • Counter: 406.75
   • Meta: 0.4497
+
+Hero 106 (Score: 452.3939)
+  • Synergy: 694.25
+  • Counter: 436.5
+  • Meta: 0.4697
 ```
 
 ---
@@ -247,76 +307,81 @@ Hero 129 (Score: 453.79)
 
 ### Model Performance Comparison
 
-| Model | Accuracy | AUC-ROC | Training Time | Key Insight |
-|-------|----------|---------|---------------|-------------|
-| **Draft-Only (LR)** | 63.8% | 0.71 | 33 sec | Baseline performance |
-| **Draft-Only (RF)** | 66.1% | 0.73 | 80 sec | Best draft-only |
-| **Draft-Only (GBT)** | **67.4%** | **0.74** | 307 sec | Exceeds 65% target ✓ |
-| **Early Game (LR)** | **71.6%** | **0.72** | 28 sec | Best overall ✓ |
-| **Early Game (RF)** | 65.1% | 0.72 | 70 sec | Solid performance |
-| **Early Game (GBT)** | 64.9% | 0.71 | 280 sec | Slower convergence |
+#### Sample 1: Draft-Based Prediction
 
-### Feature Importance (Top 10)
+| Model | Accuracy | AUC-ROC | Precision | Recall | F1 Score |
+|-------|----------|---------|-----------|--------|----------|
+| Logistic Regression | 60.42% | 0.643 | 60.40% | 60.42% | 0.604 |
+| Random Forest | 58.00% | 0.610 | 58.01% | 58.00% | 0.578 |
+| Gradient Boosting | 58.45% | 0.621 | 58.43% | 58.45% | 0.584 |
 
-**From Random Forest Analysis:**
-1. **combined_advantage** (24.05%) - Normalized gold + experience lead
-2. **gold_trend_10min** (15.55%) - Gold momentum direction
-3. **gold_at_10min** (14.18%) - Current gold advantage
-4. **is_radiant_ahead** (10.46%) - Binary lead indicator
-5. **exp_trend_10min** (8.38%) - Experience momentum
-6. **gold_min_10min** (4.35%) - Minimum gold lead
-7. **gold_max_10min** (3.50%) - Maximum gold lead
-8. **exp_max_10min** (3.44%) - Maximum experience lead
-9. **exp_at_10min** (3.20%) - Current experience advantage
-10. **gold_volatility_10min** (2.93%) - Lead stability
+**Best Model:** Logistic Regression (60.4% accuracy, 0.643 AUC)
 
-### Key Findings
+#### Sample 2: Early Game Enhanced Prediction
 
-1. **Early Game Impact:**
-   - First 10 minutes determine 72% of match outcomes
-   - Gold advantage is the strongest predictor
-   - +14.2% accuracy improvement over draft-only
+| Model | Accuracy | AUC-ROC | F1 Score | Training Time |
+|-------|----------|---------|----------|---------------|
+| Logistic Regression | **65.07%** | **0.7155** | 0.6507 | 33.28 sec |
+| Random Forest | 64.99% | 0.7149 | 0.6499 | 79.53 sec |
+| Gradient Boosting | 64.81% | 0.7108 | 0.6479 | 306.72 sec |
 
-2. **Draft Analysis:**
-   - Hero synergy matters more than individual hero strength
-   - Pick order and timing provide marginal improvements
-   - 67.4% accuracy achievable with draft alone
+**Best Model:** Logistic Regression (65.1% accuracy, 0.716 AUC)
 
-3. **Hero Recommendations:**
-   - 64% of recommended heroes appear in winning team compositions
-   - Synergy and counter-pick equally important (40% each)
-   - Meta trends contribute 20% to recommendation score
+**Draft-Only Baseline:** 50.83% accuracy, 0.503 AUC  
+**Improvement:** +14.24% accuracy, +0.2125 AUC
+
+#### Sample 3: Hero Recommendation System
+
+| Metric | Value |
+|--------|-------|
+| Heroes Analyzed | 125 |
+| Synergy Pairs | 7,635 |
+| Counter Pairs | 15,282 |
+| Recommendation Time | 1,084.57 sec |
+| Total Pipeline Time | 1,124.37 sec |
+
+---
+
+## Key Findings
+
+### 1. Draft Analysis (Sample 1)
+- **Synergy Matters Most:** synergy_diff is the top predictor (7.36% importance)
+- **Patch Effects:** Game version significantly impacts outcomes (3.55% importance)
+- **Team Composition:** Radiant/Dire synergy scores crucial for prediction
+- **Logistic Regression Best:** 60.4% accuracy with fastest training time
+
+### 2. Early Game Impact (Sample 2)
+- **10-Minute Rule:** First 10 minutes determine 65%+ of match outcomes
+- **Gold is King:** Gold advantages account for 54% of top feature importance
+  - combined_advantage: 24.05%
+  - gold_trend_10min: 15.55%
+  - gold_at_10min: 14.18%
+- **Momentum Matters:** Trend features more predictive than absolute values
+- **Significant Improvement:** +14.24% accuracy gain over draft-only baseline
+- **Draft Alone Insufficient:** 50.8% baseline nearly random (coin flip)
+
+### 3. Hero Recommendations (Sample 3)
+- **Balanced Approach:** Synergy (40%) and counters (40%) equally weighted
+- **Meta Context:** Current hero strength contributes 20% to recommendation
+- **Large-Scale Analysis:** Processes 125 heroes and 7,635 synergy combinations
+- **Computational Intensity:** ~18 minutes for comprehensive recommendation
+- **Actionable Output:** Provides clear top-3 picks with score breakdowns
 
 ---
 
 ## Technical Architecture
 
-### Spark Configuration
-```python
-SparkSession.builder \
-    .config("spark.sql.adaptive.enabled", "true") \
-    .config("spark.sql.shuffle.partitions", "100") \
-    .config("spark.memory.fraction", "0.8") \
-    .config("spark.executor.memory", "4g") \
-    .config("spark.driver.memory", "4g")
-```
+### Sample 1: Draft Prediction Pipeline
 
-### GCP Dataproc Cluster Specifications
-- **Master Node:** 1 × n1-standard-4 (4 vCPU, 15 GB RAM)
-- **Worker Nodes:** 2 × n1-standard-4 (4 vCPU, 15 GB RAM)
-- **Total Resources:** 12 vCPU, 45 GB RAM
-- **Storage:** Google Cloud Storage
-- **Cost:** ~$0.17/hour
-
-### Data Processing Pipeline
 ```
-Raw Data (27.86 GB)
+Multi-Year Data Loading (2016-2024)
     ↓
 Feature Engineering
-    ├── Draft Features (248 one-hot encoded heroes)
-    ├── Synergy Matrix (7,635 hero pairs)
-    ├── Gold/XP Trends (time-series aggregation)
-    └── Objectives (event-based features)
+    ├── Hero Picks/Bans (one-hot encoding)
+    ├── Synergy Matrix (2-hero combinations)
+    ├── Pick Order Features
+    ├── Draft Timing Features
+    └── Patch Version
     ↓
 ML Pipeline
     ├── Vector Assembly
@@ -324,107 +389,174 @@ ML Pipeline
     └── Train/Test Split (80/20)
     ↓
 Model Training
-    ├── Logistic Regression
-    ├── Random Forest (100 trees, depth=10)
-    └── Gradient Boosting (100 iterations)
+    ├── Logistic Regression (maxIter=100, regParam=0.01)
+    ├── Random Forest (trees=100, depth=10)
+    └── Gradient Boosting (maxIter=100, depth=5)
     ↓
-Evaluation & Predictions
+Evaluation & Export
+```
+
+### Sample 2: Early Game Prediction Pipeline
+
+```
+Data Loading (GCS)
+    ├── picks_bans.csv
+    ├── main_metadata.csv
+    ├── radiant_gold_adv.csv
+    ├── radiant_exp_adv.csv
+    ├── objectives.csv (optional)
+    └── teamfights.csv (optional)
+    ↓
+Feature Engineering (10-minute window)
+    ├── Gold Features (at, max, min, avg, trend, volatility)
+    ├── Experience Features (at, max, min, avg, trend, volatility)
+    ├── Draft Features (radiant_picks, dire_picks)
+    ├── Objectives (tower_kills, early_objective_count)
+    ├── Teamfights (count)
+    └── Derived Features (is_radiant_ahead, combined_advantage)
+    ↓
+ML Pipeline
+    ├── Vector Assembly (21 features)
+    ├── Standard Scaling
+    └── Train/Test Split (80/20)
+    ↓
+Model Training
+    ├── Logistic Regression
+    ├── Random Forest
+    └── Gradient Boosting
+    ↓
+Baseline Comparison (Draft-Only LR)
+    ↓
+Sample Predictions with Recommendations
+    ↓
+Results Export (JSON, Text, CSV)
+```
+
+### Sample 3: Hero Recommendation Pipeline
+
+```
+Data Loading
+    ├── picks_bans.csv
+    └── main_metadata.csv
+    ↓
+Statistical Analysis
+    ├── Meta Statistics (win rates, pick rates)
+    ├── Synergy Matrix (2-hero win rates)
+    └── Counter Matrix (hero vs hero matchups)
+    ↓
+Scoring Algorithm
+    Final Score = 0.4 × Synergy + 0.4 × Counter + 0.2 × Meta
+    ↓
+Recommendation Generation
+    ├── Filter used heroes
+    ├── Score all candidates
+    └── Return top-3
+    ↓
+Output to GCS
 ```
 
 ---
 
-## Code Description
+## Spark Configuration
 
-### Sample 1: Draft-Based Prediction
-**File:** `METCS777-term-project-code-sample-1-Team12.py`
+### Sample 1 (Draft Prediction)
+```python
+SparkSession.builder \
+    .config("spark.driver.memory", "4g") \
+    .config("spark.executor.memory", "4g") \
+    .config("spark.sql.shuffle.partitions", "32") \
+    .config("spark.memory.fraction", "0.8") \
+    .config("spark.sql.adaptive.enabled", "true") \
+    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+```
 
-**Features Created:**
-- One-hot encoding for 124 heroes × 2 teams
-- Hero synergy matrix (pairwise win rates)
-- Pick order features (first pick, last pick)
-- Draft timing statistics
-- Patch version indicators
+### Sample 2 (Early Game Prediction)
+```python
+SparkSession.builder \
+    .config("spark.sql.adaptive.enabled", "true") \
+    .config("spark.sql.shuffle.partitions", "100") \
+    .config("spark.memory.fraction", "0.8") \
+    .config("spark.executor.memory", "4g") \
+    .config("spark.driver.memory", "4g") \
+    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+```
 
-**Models:**
-- Logistic Regression (baseline)
-- Random Forest (depth=10, trees=100)
-- Gradient Boosting (iterations=100)
-
-**Output:** Model comparison metrics, feature importance, best model predictions
-
----
-
-### Sample 2: Early Game Enhanced Prediction
-**File:** `METCS777-term-project-code-sample-2-Team12.py`
-
-**Additional Features:**
-- **Gold Advantages:** gold_at_10min, gold_max_10min, gold_trend_10min, gold_volatility_10min
-- **Experience Advantages:** exp_at_10min, exp_trend_10min, exp_volatility_10min
-- **Objectives:** tower_kills_10min, first_blood, early_objective_count
-- **Teamfights:** teamfights_count_10min (if data available)
-- **Momentum:** is_radiant_ahead, combined_advantage, comeback_potential
-
-**Improvements:**
-- Window functions for proper trend calculation
-- Robust error handling for missing data
-- Draft-only baseline for comparison
-- Sample predictions with recommendations
-
-**Output:** JSON metrics, text report, prediction CSV with probabilities
+### Sample 3 (Hero Recommendation)
+```python
+SparkSession.builder \
+    .config("spark.sql.shuffle.partitions", "200")
+```
 
 ---
 
-### Sample 3: Hero Recommendation System
-**File:** `METCS777-term-project-code-sample-3-Team12.py`
+## GCP Dataproc Cluster Specifications
 
-**Components:**
-1. **Meta Analysis:** Calculate win rates and pick rates for all heroes
-2. **Synergy Matrix:** Win rates for all 2-hero combinations
-3. **Counter Matrix:** Win rates when specific heroes face each other
-4. **Scoring Algorithm:** Weighted combination of synergy (40%), counter (40%), and meta (20%)
-
-**Output:** Top-3 hero recommendations with detailed scoring breakdown
+- **Master Node:** 1 × n1-standard-4 (4 vCPU, 15 GB RAM)
+- **Worker Nodes:** 2 × n1-standard-4 (4 vCPU, 15 GB RAM)
+- **Total Resources:** 12 vCPU, 45 GB RAM
+- **Image Version:** 2.0-debian10
+- **Spark Version:** 3.1.3
+- **Storage:** Google Cloud Storage
+- **Estimated Cost:** ~$0.17/hour
 
 ---
 
 ## Performance Metrics
 
-### Execution Times (Full Dataset on GCP)
+### Sample 1: Draft Prediction (Multi-Year Data)
+- **Data Loading:** Variable (depends on years 2016-2024)
+- **Feature Engineering:** ~60-120 seconds
+- **Model Training:** 
+  - Logistic Regression: ~30-40 seconds
+  - Random Forest: ~80-100 seconds
+  - Gradient Boosting: ~300-350 seconds
 
-| Component | Time | Throughput |
-|-----------|------|------------|
-| Data Loading | 72 sec | 387 MB/s |
-| Feature Engineering | 19 sec | 1,465 MB/s |
-| Draft Model Training | 80 sec | - |
-| Early Game Training | 100 sec | - |
-| Hero Recommendation | 1,100 sec | - |
-| **Total Pipeline** | ~570 sec | - |
+### Sample 2: Early Game Prediction (123,692 matches)
+- **Data Loading:** 72.43 seconds (11M+ rows)
+- **Feature Engineering:** 19.43 seconds
+- **Model Training:**
+  - Logistic Regression: 33.28 seconds
+  - Random Forest: 79.53 seconds
+  - Gradient Boosting: 306.72 seconds
+- **Total Execution:** 577.23 seconds (~9.6 minutes)
 
-### Model Training Times
-
-| Model | Draft-Only | Early Game | Improvement |
-|-------|------------|------------|-------------|
-| Logistic Regression | 33 sec | 28 sec | +15% faster |
-| Random Forest | 80 sec | 70 sec | +13% faster |
-| Gradient Boosting | 307 sec | 280 sec | +9% faster |
+### Sample 3: Hero Recommendation (2.8M records)
+- **Data Loading:** 13.54 seconds
+- **Meta Statistics:** 2.55 seconds
+- **Synergy Matrix:** 0.13 seconds
+- **Counter Matrix:** 0.08 seconds
+- **Recommendation:** 1,084.57 seconds (~18 minutes)
+- **Total Pipeline:** 1,124.37 seconds (~18.7 minutes)
 
 ---
 
-## Cost Analysis
+## Code Features
 
-### GCP Dataproc Costs
+### Sample 1 Highlights
+- Multi-year data loading (2016-2024)
+- Dynamic hero ID detection
+- Hero synergy calculation with minimum games threshold
+- Pick order and timing features
+- Comprehensive feature importance analysis
+- Model comparison and export
+- GCS-compatible output
 
-| Task | Runtime | Cost |
-|------|---------|------|
-| Sample 1 (Draft) | 10 min | $0.28 |
-| Sample 2 (Early Game) | 12 min | $0.34 |
-| Sample 3 (Recommendation) | 20 min | $0.57 |
-| **Total Project** | 42 min | **$1.19** |
+### Sample 2 Highlights
+- Command-line argument parsing for input/output paths
+- Robust error handling for missing files
+- Window functions for correct trend calculation
+- Draft-only baseline for comparison
+- Sample predictions with strategic recommendations
+- JSON and CSV output formats
+- Performance metrics tracking
 
-**Cost Optimization Tips:**
-- Use preemptible workers (70% cost reduction)
-- Auto-scale cluster based on workload
-- Delete cluster immediately after completion
+### Sample 3 Highlights
+- Efficient dictionary-based scoring
+- Broadcast variables for distributed computation
+- UTF-8 output with GCS upload
+- Detailed execution time tracking
+- Comprehensive scoring breakdown
+- Top-3 recommendation generation
 
 ---
 
@@ -436,47 +568,62 @@ Increase executor memory:
 --properties spark.executor.memory=8g,spark.driver.memory=8g
 ```
 
-### "RDD is empty" Error
-This occurs with insufficient sample data. Solutions:
-- Use full dataset (123,692 matches)
-- Create consistent sample across all files by match_id
-- Minimum recommended: 1,000 matches
+### Missing Data Files
+Sample 2 handles missing teamfights/objectives gracefully:
+```python
+try:
+    teamfights = spark.read.option("mode", "PERMISSIVE").json(...)
+except:
+    print("[WARNING] Teamfights data not available - skipping")
+    teamfights_available = False
+```
 
-### Slow Performance
-Enable adaptive query execution:
-```bash
---properties spark.sql.adaptive.enabled=true
+### Trend Calculation Issues
+Ensure proper Window function usage:
+```python
+window_spec = Window.partitionBy("match_id").orderBy("minute")
+gold_start = df.filter(F.col("row_num_asc") == 1)
+gold_end = df.filter(F.col("row_num_desc") == 1)
 ```
 
 ### GCS Access Denied
-Ensure service account has proper permissions:
+Ensure service account has:
 - Storage Admin
 - Dataproc Worker
+- Dataproc Service Agent
 
 ---
 
 ## Sample Insights
 
-### Match Outcome Patterns
-- **Radiant Advantage:** Inherent 3% higher win rate due to map asymmetry
-- **Gold Lead Impact:** +1,000 gold at 10 min → +15% win probability
-- **Comeback Potential:** High volatility (±500 gold swings) indicates competitive games
+### Draft Phase
+- **Synergy > Individual Heroes:** Team composition more important than star players
+- **Patch Dependency:** Meta shifts significantly between patches
+- **First Pick Advantage:** Minimal impact (~2% importance)
+- **Draft Timing:** Does not strongly correlate with outcomes
 
-### Hero Meta Trends
-- **Most Picked Heroes:** Hero 66, 121, 38 (core carries)
-- **Highest Win Rates:** Heroes with strong team synergy
-- **Ban Priority:** Heroes 112, 137, 53 most frequently banned
+### Early Game
+- **Critical Window:** Minutes 5-10 most predictive
+- **Gold Momentum:** Trend more important than snapshot value
+- **Comeback Difficult:** Teams behind at 10 min rarely recover
+- **Objective Priority:** Towers > Kills for early game advantage
+
+### Hero Recommendations
+- **Synergy Wins Games:** Hero combinations crucial
+- **Counter-Picking Works:** Matching up against opponent matters
+- **Meta Shifts:** Win rates change significantly over time
+- **Complexity Trade-off:** 18-minute calculation for optimal picks
 
 ---
 
 ## Technologies
 
-- **Big Data:** Apache Spark 3.x (PySpark)
+- **Big Data:** Apache Spark 3.1.3 (PySpark)
 - **Cloud Platform:** Google Cloud Platform (Dataproc)
 - **Storage:** Google Cloud Storage
-- **ML Framework:** Spark MLlib (DataFrame API)
+- **ML Framework:** Spark MLlib
 - **Languages:** Python 3.7+
-- **Libraries:** NumPy, JSON
+- **Libraries:** PySpark, NumPy, JSON
 
 ---
 
@@ -486,10 +633,10 @@ Ensure service account has proper permissions:
 # Delete Dataproc cluster
 gcloud dataproc clusters delete dota2-prediction-cluster --region=us-east1
 
-# Delete Cloud Storage buckets
-gsutil -m rm -r gs://dota2-project-input
-gsutil -m rm -r gs://dota2-project-output
-gsutil -m rm -r gs://dota2-project-code
+# Delete Cloud Storage buckets (optional)
+gsutil -m rm -r gs://bucket0820
+gsutil -m rm -r gs://cs777-termpaper
+gsutil -m rm -r gs://dota2-dataproc-bucket-utkarsh
 ```
 
 ---
@@ -497,30 +644,25 @@ gsutil -m rm -r gs://dota2-project-code
 ## Team Contributions
 
 **Anh Pham:**
-- GCP infrastructure setup and configuration
-- Data ingestion pipeline (12 CSV files)
-- Draft feature engineering (Code Sample 1)
+- Sample 1: Draft-based prediction implementation
+- Multi-year data loading pipeline
+- Hero synergy matrix calculation
 - Logistic Regression models
-- Report: Introduction and Background sections
+- GCP Dataproc cluster setup
 
 **Jinzhe Bai:**
-- Time-series feature engineering (gold/XP advantages)
-- Teamfight and objectives processing
-- Random Forest models (Code Sample 2)
-- Meta evolution analysis
-- Report: Methodology and Data Description sections
+- Sample 2: Early game prediction implementation
+- Time-series feature engineering (gold/XP trends)
+- Window function optimization
+- Random Forest models
+- Sample prediction generation
 
 **Utkarsh Roy:**
-- Gradient Boosting models and hyperparameter tuning
-- Hero recommendation system (Code Sample 3)
-- Visualizations and performance dashboards
-- Model evaluation framework
-- Report: Results, Discussion, and Conclusions sections
-
-**Shared:**
-- Weekly progress meetings and code reviews
-- Collaborative insight generation
-- Final report assembly
+- Sample 3: Hero recommendation system
+- Scoring algorithm development
+- Counter-pick matrix calculation
+- Gradient Boosting models
+- Performance optimization and GCS integration
 
 ---
 
