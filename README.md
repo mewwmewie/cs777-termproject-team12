@@ -640,29 +640,43 @@ gsutil -m rm -r gs://dota2-dataproc-bucket-utkarsh
 ```
 
 ---
-
 ## Team Contributions
 
-**Anh Pham:**
-- Sample 1: Draft-based prediction implementation
-- Multi-year data loading pipeline
-- Hero synergy matrix calculation
-- Logistic Regression models
-- GCP Dataproc cluster setup
-
 **Jinzhe Bai:**
+- Sample 1: Draft-based prediction implementation
+- Multi-year data loading pipeline (2016-2024)
+- Hero synergy matrix calculation (7,626 pairs)
+- Logistic Regression, Random Forest, and Gradient Boosting models
+- GCP Dataproc cluster setup and configuration
+- Feature importance analysis and model comparison
+- One-hot encoding for 248 hero pick/ban features
+
+**Anh Pham:**
 - Sample 2: Early game prediction implementation
-- Time-series feature engineering (gold/XP trends)
-- Window function optimization
-- Random Forest models
-- Sample prediction generation
+- Time-series feature engineering (gold/XP advantages at 10 minutes)
+- Window function optimization for trend calculations
+- Edge case handling for matches <10 minutes duration
+- Teamfight win ratio processing (~8 fights per match average)
+- Sample prediction generation with strategic recommendations
+- Draft-only baseline comparison (+14.24% improvement validation)
+- Feature joining pipeline (early game + draft features)
 
 **Utkarsh Roy:**
 - Sample 3: Hero recommendation system
-- Scoring algorithm development
-- Counter-pick matrix calculation
-- Gradient Boosting models
-- Performance optimization and GCS integration
+- Scoring algorithm development (40% synergy + 40% counter + 20% meta)
+- Counter-pick matrix calculation (15,282 combinations)
+- Hero statistics analysis (124 unique heroes)
+- Top-3 recommendation ranking algorithm
+- Performance optimization for 7,635 hero pair computations
+- GCS integration and UTF-8 output handling
+- Hero pick rate visualization prototyping
+
+**Shared Responsibilities:**
+- Weekly progress meetings and coordination
+- Data pipeline integration across all three samples
+- Performance benchmarking on full dataset (123,692 matches)
+- Code review and optimization
+- Final results validation and analysis
 
 ---
 
