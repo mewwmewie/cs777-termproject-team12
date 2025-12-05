@@ -1,5 +1,3 @@
-Here's the updated README with the simplified Repository Structure based on your screenshot:
-
 # DOTA 2 Match Prediction Using Big Data Analytics
 **Team 12**
 
@@ -94,7 +92,7 @@ cs777-termproject-team12/
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/cs777-termproject-team12.git
+git clone https://github.com/mewwmewie/cs777-termproject-team12.git
 cd cs777-termproject-team12
 ```
 
@@ -538,11 +536,3 @@ gsutil -m rm -r gs://dota2-project-code
 ## License
 
 This project is for educational purposes as part of MET CS777 coursework at Boston University.
-
----
-
-## Contact
-
-For questions or feedback:
-- **Team 12** - MET CS777 Big Data Analytics
-- **Institution:** Boston University Metropolitan College
