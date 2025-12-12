@@ -125,7 +125,7 @@ gcloud dataproc clusters create dota2-prediction-cluster \
 Predicts match outcomes using hero picks/bans, synergy, pick order, and timing.
 
 **Configuration:**
-- Year Range: 2016-2024
+- Year Range: 2020-2024
 - Features: Hero picks/bans (one-hot encoded), synergy matrix, pick order, draft timing, patch version
 - Models: Logistic Regression, Random Forest, Gradient Boosting
 - Target Metrics: Accuracy ≥65%, AUC-ROC ≥0.70
